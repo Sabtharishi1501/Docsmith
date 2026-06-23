@@ -1,0 +1,10 @@
+streamlit
+groq
+faiss-cpu
+rank-bm25
+trafilatura
+beautifulsoup4
+requests
+python-dotenv
+pydantic
+tiktoken
