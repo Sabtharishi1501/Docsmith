@@ -8,3 +8,5 @@ requests
 python-dotenv
 pydantic
 tiktoken
+numpy
+scikit-learn
