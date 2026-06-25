@@ -10,3 +10,4 @@ pydantic
 tiktoken
 numpy
 scikit-learn
+markdown
