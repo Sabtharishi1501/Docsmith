@@ -3,7 +3,7 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 from core.orchestrator import run_pipeline
-import time
+import re
 
 load_dotenv()
 
@@ -15,311 +15,266 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-
-/* ── Kill Streamlit default header completely ── */
-#MainMenu { visibility: hidden; }
-header { visibility: hidden !important; height: 0 !important; }
-footer { visibility: hidden; }
+#MainMenu { visibility: hidden !important; }
+header[data-testid="stHeader"] { display: none !important; }
+footer { display: none !important; }
 section[data-testid="stSidebar"] { display: none !important; }
 
-/* ── Remove all default padding ── */
-html,
-body,
-[data-testid="stAppViewContainer"],
-.main {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden !important;
-}
-
 .block-container {
+    padding-top: 0px !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    padding-bottom: 2rem !important;
     max-width: 100% !important;
-    width: 100%;
-    height: 100vh;
-    padding: 10px 20px !important;
-    overflow: hidden !important;
 }
 
-/* ── Sticky navbar ── */
-.sticky-nav {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 999999;
-    background: #0e1117;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    text-align: center;
-    padding: 10px 0 8px 0;
-}
-
-/* ── Spacer to push content below fixed nav ── */
-.spacer { height: 90px; }
-
-/* ── Hero boxes ── */
+/* Hero boxes */
 .hero-box {
     background: rgba(108,99,255,0.08);
     border: 1px solid rgba(108,99,255,0.2);
     border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
 }
 .advisor-box {
     background: rgba(29,158,117,0.08);
     border: 1px solid rgba(29,158,117,0.2);
     border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
 }
 .hero-title {
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 600;
     color: #fff;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
-.hero-steps {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-}
+.hero-steps { display: flex; gap: 12px; flex-wrap: wrap; }
 .hero-step {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     flex: 1;
-    min-width: 150px;
+    min-width: 130px;
+    margin-bottom: 8px;
 }
 .step-num {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #6C63FF;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 2px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #6C63FF; color: #fff; font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px;
 }
 .step-num-green {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #1D9E75;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 2px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #1D9E75; color: #fff; font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px;
 }
-.step-text {
-    font-size: 13px;
-    color: rgba(255,255,255,0.7);
-    line-height: 1.5;
-}
-.step-text b {
-    color: #fff;
-    display: block;
-    margin-bottom: 3px;
-    font-size: 13px;
-}
-.top-navbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    background: #0b1020;
-    z-index: 9999;
-    padding: 20px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-}
+.step-text { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4; }
+.step-text b { color: #fff; display: block; margin-bottom: 2px; font-size: 12px; }
 
-.top-navbar-inner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.brand-title {
-    font-size: 42px;
-    font-weight: 700;
-    color: white;
-    margin-bottom: 5px;
-}
-
-.brand-subtitle {
-    font-size: 18px;
-    color: rgba(255,255,255,0.6);
-    margin-bottom: 20px;
-}
-
-.nav-buttons {
-    display: flex;
-    gap: 20px;
-}
-
-.page-spacer {
-    height: 180px;
-}
-
-/* ── Scrollbars ── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.15);
-    border-radius: 4px;
-}
-
-/* ── Scroll to top JS anchor ── */
-#top-anchor { display: block; height: 0; }
-            
-/* Active button = Green */
+/* Button overrides */
 .stButton button[kind="primary"] {
     background-color: #1D9E75 !important;
     border-color: #1D9E75 !important;
     color: white !important;
 }
-
-/* Hover effect */
-.stButton button[kind="primary"]:hover {
-    background-color: #16825f !important;
-    border-color: #16825f !important;
-}
-
-/* Secondary button */
 .stButton button[kind="secondary"] {
     background-color: transparent !important;
-    border: 1px solid rgba(255,255,255,0.15) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
     color: white !important;
 }
-            section.main {
-    overflow: hidden !important;
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
 }
-
-[data-testid="stAppViewContainer"] {
-    overflow: hidden !important;
-}
-
-[data-testid="stVerticalBlock"] {
-    overflow: hidden;
-}
-[data-testid="stVerticalBlock"] > div:has([data-testid="stChatMessage"]) {
-    height: 700px;
-    overflow-y: auto;
-}
-.chat-window{
-
-    height:50vh;
-
-    overflow-y:auto;
-
-    border:1px solid rgba(255,255,255,.08);
-
-    border-radius:14px;
-
-    padding:20px;
-
-    background:#070d18;
-
-    scroll-behavior:smooth;
-
-}
-
-.user-msg{
-
-    display:flex;
-
-    justify-content:flex-end;
-
-    align-items:flex-start;
-
-    gap:10px;
-
-    margin-bottom:20px;
-
-}
-
-.assistant-msg{
-
-    display:flex;
-
-    align-items:flex-start;
-
-    gap:10px;
-
-    margin-bottom:20px;
-
-}
-
-.user-avatar,
-.assistant-avatar{
-
-    width:36px;
-
-    height:36px;
-
-    border-radius:50%;
-
-    display:flex;
-
-    align-items:center;
-
-    justify-content:center;
-
-    font-size:18px;
-
-    flex-shrink:0;
-
-}
-
-.user-avatar{
-
-    background:#ef4444;
-
-}
-
-.assistant-avatar{
-
-    background:#f59e0b;
-
-}
-
-.bubble-user{
-
-    max-width:75%;
-
-    background:#1f2937;
-
-    padding:14px 18px;
-
-    border-radius:14px;
-
-    color:white;
-
-    word-wrap:break-word;
-
-}
-
-.bubble-assistant{
-
-    max-width:75%;
-
-    padding:14px 18px;
-
-    color:white;
-
-    word-wrap:break-word;
-
-    line-height:1.7;
-
-}          
 </style>
 """, unsafe_allow_html=True)
+
+
+def render_md(text: str) -> str:
+    import re
+
+    # ── Step 1: Extract code blocks and replace with placeholders ──
+    code_blocks = {}
+    counter = [0]
+
+    def extract_code_block(match):
+        lang = match.group(1).strip() if match.group(1) else "code"
+        code = match.group(2)
+        code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        placeholder = f"__CODEBLOCK_{counter[0]}__"
+        code_blocks[placeholder] = f"""<div style="background:#0d1117;border:1px solid rgba(99,102,241,0.3);border-left:3px solid #6C63FF;border-radius:8px;margin:10px 0;overflow-x:auto"><div style="padding:4px 12px;background:rgba(108,99,255,0.15);border-bottom:1px solid rgba(99,102,241,0.2);font-size:11px;color:#AFA9EC;font-family:monospace">{lang}</div><pre style="margin:0;padding:12px 16px;font-family:'Courier New',Consolas,monospace;font-size:12px;line-height:1.7;color:#e2e8f0;white-space:pre-wrap;word-break:break-word"><code>{code.strip()}</code></pre></div>"""
+        counter[0] += 1
+        return placeholder
+
+    text = re.sub(r'```(\w*)\n?([\s\S]*?)```', extract_code_block, text)
+
+    # ── Step 2: Inline formatting ──
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong style="color:#fff;font-weight:600">\1</strong>', text)
+    text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+    text = re.sub(
+        r'`([^`\n]+)`',
+        r'<code style="background:rgba(108,99,255,0.2);color:#AFA9EC;padding:1px 6px;border-radius:4px;font-family:monospace;font-size:12px">\1</code>',
+        text
+    )
+
+    # ── Step 3: Line-by-line processing ──
+    lines = text.split('\n')
+    result = []
+    in_ul = False
+    in_ol = False
+    in_table = False
+
+    for line in lines:
+        s = line.strip()
+
+        if not s:
+            if in_ul: result.append('</ul>'); in_ul = False
+            if in_ol: result.append('</ol>'); in_ol = False
+            if in_table: result.append('</table>'); in_table = False
+            continue
+
+        # Placeholder — restore code block as-is
+        if s.startswith('__CODEBLOCK_') and s.endswith('__'):
+            if in_ul: result.append('</ul>'); in_ul = False
+            if in_ol: result.append('</ol>'); in_ol = False
+            if in_table: result.append('</table>'); in_table = False
+            result.append(code_blocks.get(s, s))
+            continue
+
+        # Bullet list
+        if s.startswith('* ') or s.startswith('- '):
+            if in_ol: result.append('</ol>'); in_ol = False
+            if not in_ul:
+                result.append('<ul style="margin:6px 0 6px 18px;padding:0">')
+                in_ul = True
+            result.append(f'<li style="margin-bottom:4px">{s[2:]}</li>')
+
+        # Numbered list
+        elif re.match(r'^\d+\.\s', s):
+            if in_ul: result.append('</ul>'); in_ul = False
+            if not in_ol:
+                result.append('<ol style="margin:6px 0 6px 18px;padding:0">')
+                in_ol = True
+            content = re.sub(r'^\d+\.\s', '', s)
+            result.append(f'<li style="margin-bottom:4px">{content}</li>')
+
+        # Table
+        elif s.startswith('| ') and '|' in s[1:]:
+            if in_ul: result.append('</ul>'); in_ul = False
+            if in_ol: result.append('</ol>'); in_ol = False
+            cells = [c.strip() for c in s.split('|') if c.strip()]
+            if all(set(c) <= set('-: ') for c in cells):
+                continue
+            if not in_table:
+                result.append('<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:12px">')
+                in_table = True
+                tag = 'th'
+            else:
+                tag = 'td'
+            bg = 'background:rgba(255,255,255,0.06);' if tag == 'th' else ''
+            row = ''.join(
+                f'<{tag} style="border:1px solid rgba(255,255,255,0.12);padding:5px 10px;{bg}">{c}</{tag}>'
+                for c in cells
+            )
+            result.append(f'<tr>{row}</tr>')
+
+        # Regular paragraph
+        else:
+            if in_ul: result.append('</ul>'); in_ul = False
+            if in_ol: result.append('</ol>'); in_ol = False
+            if in_table: result.append('</table>'); in_table = False
+            result.append(f'<p style="margin:0 0 6px 0">{s}</p>')
+
+    if in_ul: result.append('</ul>')
+    if in_ol: result.append('</ol>')
+    if in_table: result.append('</table>')
+
+    return ''.join(result)
+
+
+# ════════════════════════════════════════
+# CHAT BOX RENDERER
+# ════════════════════════════════════════
+def render_chat_box(messages: list, box_id: str = "chat-box", height: int = 420):
+    """Renders a fixed-height scrollable chat box using st.components."""
+
+    chat_inner = ""
+    if not messages:
+        chat_inner = """
+        <div style="display:flex;align-items:center;justify-content:center;
+        height:100%;color:rgba(255,255,255,0.25);font-size:13px;text-align:center;padding:20px">
+            Ask me anything...
+        </div>"""
+    else:
+        for msg in messages:
+            if msg["role"] == "user":
+                content = msg['content'].replace("<", "&lt;").replace(">", "&gt;")
+                chat_inner += f"""
+                <div style="display:flex;justify-content:flex-end;
+                align-items:flex-start;gap:8px;margin-bottom:16px">
+                    <div style="max-width:75%;background:#1f2937;padding:10px 14px;
+                    border-radius:12px;color:white;font-size:13px;
+                    line-height:1.6;word-wrap:break-word">
+                        {content}
+                    </div>
+                    <div style="width:30px;height:30px;border-radius:50%;
+                    background:#ef4444;display:flex;align-items:center;
+                    justify-content:center;font-size:15px;flex-shrink:0">😊</div>
+                </div>"""
+            else:
+                rendered = render_md(msg["content"])
+                chat_inner += f"""
+                <div style="display:flex;align-items:flex-start;
+                gap:8px;margin-bottom:16px">
+                    <div style="width:30px;height:30px;border-radius:50%;
+                    background:#f59e0b;display:flex;align-items:center;
+                    justify-content:center;font-size:15px;flex-shrink:0">🤖</div>
+                    <div style="max-width:85%;color:rgba(255,255,255,0.9);
+                    font-size:13px;line-height:1.8;word-wrap:break-word;min-width:0">
+                        {rendered}
+                    </div>
+                </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+    background: #070d18;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}}
+#chat-box {{
+    height: {height}px;
+    overflow-y: auto;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    background: #070d18;
+}}
+#chat-box::-webkit-scrollbar {{ width: 4px; }}
+#chat-box::-webkit-scrollbar-thumb {{
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
+}}
+</style>
+</head>
+<body>
+    <div id="chat-box">
+        {chat_inner}
+    </div>
+    <script>
+        var box = document.getElementById('chat-box');
+        if (box) box.scrollTop = box.scrollHeight;
+    </script>
+</body>
+</html>"""
+
+    st.iframe(html, height=height + 4)
 
 
 # ════════════════════════════════════════
@@ -327,15 +282,12 @@ body,
 # ════════════════════════════════════════
 def _stream_advisor(question: str, history: list):
     system_prompt = """You are an expert API advisor for developers.
-You have deep knowledge of all major APIs, SDKs, and developer tools.
-Help developers choose the right API, compare options, and learn best practices.
-Be concise, practical, and always give a clear recommendation.
+Help developers choose the right API, compare options, learn best practices.
+Be concise and practical. Always give a clear recommendation.
 Use bullet points or tables where helpful. Always pick a winner when comparing."""
-
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history[-6:])
     messages.append({"role": "user", "content": question})
-
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     stream = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -353,19 +305,14 @@ Use bullet points or tables where helpful. Always pick a winner when comparing."
 def _stream_doc(question: str, index_data: dict, history: list):
     from core.retriever import retrieve_context
     context = retrieve_context(
-        query=question,
-        index_data=index_data,
-        top_k=3,
-        max_chars=2500
+        query=question, index_data=index_data, top_k=3, max_chars=2500
     )
     with open("prompts/qa_prompt.txt", "r") as f:
-        base_prompt = f.read()
-
-    system = f"{base_prompt}\n\n--- DOCUMENTATION CONTEXT ---\n{context}\n--- END ---"
+        base = f.read()
+    system = f"{base}\n\n--- DOCUMENTATION CONTEXT ---\n{context}\n--- END ---"
     messages = [{"role": "system", "content": system}]
     messages.extend(history[-4:])
     messages.append({"role": "user", "content": question})
-
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     stream = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -381,58 +328,59 @@ def _stream_doc(question: str, index_data: dict, history: list):
 
 
 # ── Session state ──
-for key, default in {
+for key, val in {
     "mode": "helper",
     "pipeline_result": None,
     "chat_history": [],
     "index_data": None,
     "advisor_history": [],
+    "last_chat_len": 0,
+    "last_advisor_len": 0,
 }.items():
     if key not in st.session_state:
-        st.session_state[key] = default
+        st.session_state[key] = val
+
+mode = st.session_state.mode
 
 
 # ════════════════════════════════════════
-# MODE TOGGLE BUTTONS
+# HEADER — Streamlit native (no HTML)
 # ════════════════════════════════════════
+st.markdown(
+    "<h2 style='text-align:center;margin:16px 0 2px 0'>⚒️ Docsmith</h2>",
+    unsafe_allow_html=True
+)
+st.markdown(
+    "<p style='text-align:center;color:rgba(255,255,255,0.4);font-size:12px;"
+    "margin-bottom:12px'>Smart DevTool for API Integration</p>",
+    unsafe_allow_html=True
+)
 
-center1, center2, center3 = st.columns([1, 3, 1])
-
-with center2:
-
-    st.markdown(
-        """
-        <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="margin-bottom:0;">⚒️ Docsmith</h1>
-            <p style="color:#9ca3af; font-size:20px;">
-                Smart DevTool for API Integration
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    btn1, btn2 = st.columns(2)
-
-    with btn1:
+# Mode toggle — only these buttons, no HTML duplicates
+hc1, hc2, hc3 = st.columns([3, 2, 3])
+with hc2:
+    b1, b2 = st.columns(2)
+    with b1:
         if st.button(
             "📄 API Doc Helper",
             use_container_width=True,
-            type="primary" if st.session_state.mode == "helper" else "secondary"
+            type="primary" if mode == "helper" else "secondary",
+            key="btn_helper"
         ):
             st.session_state.mode = "helper"
             st.rerun()
-
-    with btn2:
+    with b2:
         if st.button(
             "💡 API Advisor",
             use_container_width=True,
-            type="primary" if st.session_state.mode == "advisor" else "secondary"
+            type="primary" if mode == "advisor" else "secondary",
+            key="btn_advisor"
         ):
             st.session_state.mode = "advisor"
             st.rerun()
 
-st.divider()
+st.markdown("<hr style='margin:10px 0 16px 0'>", unsafe_allow_html=True)
+
 
 # ════════════════════════════════════════
 # MODE 1 — API DOCUMENTATION HELPER
@@ -445,35 +393,23 @@ if st.session_state.mode == "helper":
         <div class="hero-steps">
             <div class="hero-step">
                 <div class="step-num">1</div>
-                <div class="step-text">
-                    <b>Paste any API doc URL</b>
-                    Enter the public documentation link of any REST API —
-                    Stripe, GitHub, Razorpay, Twilio, and more
-                </div>
+                <div class="step-text"><b>Paste any API doc URL</b>
+                Stripe, GitHub, Razorpay, Twilio and more</div>
             </div>
             <div class="hero-step">
                 <div class="step-num">2</div>
-                <div class="step-text">
-                    <b>Click Analyze</b>
-                    Docsmith scrapes the docs, extracts all endpoints,
-                    auth methods, and generates a ready-to-use wrapper class
-                </div>
+                <div class="step-text"><b>Click Analyze</b>
+                Extracts endpoints, auth, generates wrapper class</div>
             </div>
             <div class="hero-step">
                 <div class="step-num">3</div>
-                <div class="step-text">
-                    <b>Ask anything in chat</b>
-                    Chat with the documentation — authentication,
-                    endpoints, error handling, and more
-                </div>
+                <div class="step-text"><b>Ask anything in chat</b>
+                Auth, endpoints, error handling and more</div>
             </div>
             <div class="hero-step">
                 <div class="step-num">4</div>
-                <div class="step-text">
-                    <b>Download your code</b>
-                    Get a production-ready wrapper class in Python,
-                    JavaScript, TypeScript, or Java
-                </div>
+                <div class="step-text"><b>Download your code</b>
+                Python, JavaScript, TypeScript or Java</div>
             </div>
         </div>
     </div>
@@ -481,36 +417,22 @@ if st.session_state.mode == "helper":
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        doc_url = st.text_input(
-            "Documentation URL",
-            placeholder="https://docs.stripe.com/api"
-        )
+        doc_url = st.text_input("Documentation URL",
+                                placeholder="https://docs.stripe.com/api")
     with col2:
-        language = st.selectbox(
-            "Language",
-            ["Python", "JavaScript", "TypeScript", "Java"]
-        )
+        language = st.selectbox("Language",
+                                ["Python", "JavaScript", "TypeScript", "Java"])
 
-    api_name = st.text_input(
-        "API Name (optional)",
-        placeholder="e.g. Stripe, GitHub, Razorpay"
-    )
+    api_name = st.text_input("API Name (optional)",
+                             placeholder="e.g. Stripe, GitHub, Razorpay")
 
-    analyze_btn = st.button(
-        "🔍 Analyze Documentation",
-        type="primary",
-        use_container_width=True
-    )
-
-    st.divider()
-
-    if analyze_btn:
+    if st.button("🔍 Analyze Documentation", type="primary",
+                 use_container_width=True):
         if not doc_url:
             st.error("Please provide a Documentation URL.")
         else:
-            with st.spinner("Analyzing documentation... this takes 30–60 seconds."):
+            with st.spinner("Analyzing... 30–60 seconds."):
                 try:
-                    from core.orchestrator import run_pipeline
                     result = run_pipeline(
                         url=doc_url,
                         use_case="extract all endpoints authentication methods base URL and SDK information",
@@ -522,11 +444,13 @@ if st.session_state.mode == "helper":
                     st.session_state.index_data = result["index_data"]
                     st.session_state.chat_history = []
                     st.success(
-                        f"✅ Done! Scraped {result['scraped']['pages_scraped']} pages. "
+                        f"✅ Scraped {result['scraped']['pages_scraped']} pages. "
                         f"Found {len(result['parsed'].get('endpoints', []))} endpoints."
                     )
                 except Exception as e:
                     st.error(f"Pipeline error: {e}")
+
+    st.divider()
 
     if st.session_state.pipeline_result:
         result = st.session_state.pipeline_result
@@ -535,6 +459,45 @@ if st.session_state.mode == "helper":
 
         left, right = st.columns([1, 1])
 
+        # ── RIGHT panel rendered FIRST and stored ──
+        # This prevents it from re-rendering on chat rerun
+        with right:
+            st.markdown("### ⚙️ Generated Code")
+            tab1, tab2 = st.tabs(["SDK / Wrapper Class", "Integration Summary"])
+
+            with tab1:
+                lang_map = {
+                    "Python": "python", "JavaScript": "javascript",
+                    "TypeScript": "typescript", "Java": "java"
+                }
+                ext = ("py" if language == "Python" else
+                       "js" if language == "JavaScript" else
+                       "ts" if language == "TypeScript" else "java")
+                file_name = f"{(api_name or 'api').lower().replace(' ','_')}_client.{ext}"
+                code_container = st.container(height=500)
+                with code_container:
+                    st.code(result["code"],
+                            language=lang_map.get(language, "python"))
+                st.download_button(
+                    label=f"⬇️ Download {file_name}",
+                    data=result["code"],
+                    file_name=file_name,
+                    mime="text/plain",
+                    key="download_btn"
+                )
+
+            with tab2:
+                st.markdown(f"**Base URL:** `{parsed.get('base_url','N/A')}`")
+                st.markdown(f"**Auth Method:** {parsed.get('auth_method','N/A')}")
+                st.markdown(f"**Auth Header:** `{parsed.get('auth_header','N/A')}`")
+                st.markdown(f"**Integration Path:** {intent.get('integration_path','REST')}")
+                if parsed.get("sdk_available"):
+                    st.markdown(f"**SDK:** `{parsed.get('sdk_name')}`")
+                    st.code(parsed.get("sdk_install", ""), language="bash")
+                st.markdown("**Integration Notes:**")
+                st.markdown(intent.get("explanation", ""))
+
+        # ── LEFT panel — chat ──
         with left:
             st.markdown("### 💬 Chat with Docs")
 
@@ -558,121 +521,66 @@ if st.session_state.mode == "helper":
 
             st.markdown("---")
 
-            # Render all previous messages
-            for msg in st.session_state.chat_history:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
+            render_chat_box(st.session_state.chat_history, height=400)
 
-            if not st.session_state.chat_history:
-                st.markdown(
-                    "<p style='color:rgba(255,255,255,0.3);font-size:13px;"
-                    "text-align:center;padding:30px 0'>"
-                    "⚒️ Docs analyzed — ask anything below</p>",
-                    unsafe_allow_html=True
-                )
-
-            # Suggestion buttons
             s1, s2, s3 = st.columns(3)
             with s1:
-                if st.button("⚡ Generate wrapper", use_container_width=True):
+                if st.button("⚡ Generate wrapper", use_container_width=True,
+                             key="gen_wrap"):
                     q = f"Give me a complete {language} wrapper class for this API"
                     st.session_state.chat_history.append({"role": "user", "content": q})
-                    with st.chat_message("user"):
-                        st.markdown(q)
-                    with st.chat_message("assistant"):
-                        resp = st.write_stream(_stream_doc(
-                            q, st.session_state.index_data,
-                            st.session_state.chat_history[:-1]
-                        ))
+                    resp = ""
+                    with st.spinner("Generating..."):
+                        for token in _stream_doc(q, st.session_state.index_data,
+                                                  st.session_state.chat_history[:-1]):
+                            resp += token
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
-
+                    st.rerun()
             with s2:
-                if st.button("🔐 Auth setup", use_container_width=True):
+                if st.button("🔐 Auth setup", use_container_width=True,
+                             key="auth_setup"):
                     q = "How do I set up authentication for this API?"
                     st.session_state.chat_history.append({"role": "user", "content": q})
-                    with st.chat_message("user"):
-                        st.markdown(q)
-                    with st.chat_message("assistant"):
-                        resp = st.write_stream(_stream_doc(
-                            q, st.session_state.index_data,
-                            st.session_state.chat_history[:-1]
-                        ))
+                    resp = ""
+                    with st.spinner("Thinking..."):
+                        for token in _stream_doc(q, st.session_state.index_data,
+                                                  st.session_state.chat_history[:-1]):
+                            resp += token
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
-
+                    st.rerun()
             with s3:
-                if st.button("⚠️ Error handling", use_container_width=True):
+                if st.button("⚠️ Error handling", use_container_width=True,
+                             key="err_handle"):
                     q = "How should I handle errors from this API?"
                     st.session_state.chat_history.append({"role": "user", "content": q})
-                    with st.chat_message("user"):
-                        st.markdown(q)
-                    with st.chat_message("assistant"):
-                        resp = st.write_stream(_stream_doc(
-                            q, st.session_state.index_data,
-                            st.session_state.chat_history[:-1]
-                        ))
+                    resp = ""
+                    with st.spinner("Thinking..."):
+                        for token in _stream_doc(q, st.session_state.index_data,
+                                                  st.session_state.chat_history[:-1]):
+                            resp += token
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
+                    st.rerun()
 
-            question = st.chat_input("Ask anything about the API documentation...")
+            question = st.chat_input("Ask anything about the API documentation...", key="doc_chat_input")
+
             if question:
                 st.session_state.chat_history.append({"role": "user", "content": question})
-                with st.chat_message("user"):
-                    st.markdown(question)
-                with st.chat_message("assistant"):
-                    resp = st.write_stream(_stream_doc(
+                resp = ""
+                with st.spinner("Thinking..."):
+                    for token in _stream_doc(
                         question,
                         st.session_state.index_data,
                         st.session_state.chat_history[:-1]
-                    ))
+                    ):
+                        resp += token
                 st.session_state.chat_history.append({"role": "assistant", "content": resp})
-
-        with right:
-            st.markdown("### ⚙️ Generated Code")
-            tab1, tab2 = st.tabs(["SDK / Wrapper Class", "Integration Summary"])
-
-            with tab1:
-                lang_map = {
-                    "Python": "python",
-                    "JavaScript": "javascript",
-                    "TypeScript": "typescript",
-                    "Java": "java"
-                }
-                ext = (
-                    "py" if language == "Python" else
-                    "js" if language == "JavaScript" else
-                    "ts" if language == "TypeScript" else "java"
-                )
-                file_name = (
-                    f"{(api_name or 'api').lower().replace(' ', '_')}_client.{ext}"
-                )
-                code_container = st.container(height=600)
-                with code_container:
-                    st.code(
-                        result["code"],
-                        language=lang_map.get(language, "python")
-                    )
-                st.download_button(
-                    label=f"⬇️ Download {file_name}",
-                    data=result["code"],
-                    file_name=file_name,
-                    mime="text/plain"
-                )
-
-            with tab2:
-                st.markdown(f"**Base URL:** `{parsed.get('base_url', 'N/A')}`")
-                st.markdown(f"**Auth Method:** {parsed.get('auth_method', 'N/A')}")
-                st.markdown(f"**Auth Header:** `{parsed.get('auth_header', 'N/A')}`")
-                st.markdown(f"**Integration Path:** {intent.get('integration_path', 'REST')}")
-                if parsed.get("sdk_available"):
-                    st.markdown(f"**SDK:** `{parsed.get('sdk_name')}`")
-                    st.code(parsed.get("sdk_install", ""), language="bash")
-                st.markdown("**Integration Notes:**")
-                st.markdown(intent.get("explanation", ""))
+                st.rerun()
 
     else:
         st.markdown(
             "<p style='color:rgba(255,255,255,0.4);font-size:14px;"
             "text-align:center;margin-top:10px'>"
-            "👆 Paste a documentation URL above and click "
+            "👆 Paste a doc URL and click "
             "<b style='color:#fff'>Analyze Documentation</b> to get started.</p>",
             unsafe_allow_html=True
         )
@@ -686,151 +594,48 @@ else:
     left, right = st.columns([1, 2])
 
     with left:
-        advisor_html = """
+        st.markdown("""
         <div class="advisor-box">
-
             <div class="hero-title">💡 API Advisor</div>
-
-            <div class="hero-step">
+            <div class="hero-step" style="margin-bottom:10px">
                 <div class="step-num-green">1</div>
-                <div class="step-text">
-                    <b>Ask any API question</b><br>
-                    Which payment API should I use?<br>
-                    What is the best SMS provider?<br>
-                    How does OAuth work?
-                </div>
+                <div class="step-text"><b>Ask any API question</b>
+                Which payment API? Best SMS provider? How does OAuth work?</div>
             </div>
-
-            <br>
-
-            <div class="hero-step">
+            <div class="hero-step" style="margin-bottom:10px">
                 <div class="step-num-green">2</div>
-                <div class="step-text">
-                    <b>Get expert recommendations</b><br>
-                    Docsmith compares APIs on pricing,
-                    features, rate limits and ease of use
-                    and picks a winner.
-                </div>
+                <div class="step-text"><b>Get expert recommendations</b>
+                Compare APIs on pricing, features, rate limits — picks a winner</div>
             </div>
-
-            <br>
-
             <div class="hero-step">
                 <div class="step-num-green">3</div>
-                <div class="step-text">
-                    <b>Learn best practices</b><br>
-                    Auth strategies, error handling,
-                    rate limiting, webhooks,
-                    pagination and more.
-                </div>
+                <div class="step-text"><b>Learn best practices</b>
+                Auth, error handling, rate limiting, webhooks and more</div>
             </div>
-
         </div>
-        """
+        """, unsafe_allow_html=True)
 
-        st.html(advisor_html)
-    # RIGHT PANEL
     with right:
+        st.markdown("### 💬 Chat")
 
-    # ---------- Chat History ----------
-        chat_html = ""
+        # Fixed scrollable chat box via components
+        render_chat_box(st.session_state.advisor_history, height=420)
 
-        if not st.session_state.advisor_history:
-
-            chat_html = """
-            <div style="
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                height:100%;
-                color:#9ca3af;
-                font-size:18px;
-            ">
-                Ask me anything about APIs, SDKs, pricing,
-                authentication, rate limits and integrations.
-            </div>
-            """
-
-        else:
-
-            for msg in st.session_state.advisor_history:
-
-                if msg["role"] == "user":
-
-                    chat_html += f"""
-                    <div class="user-msg">
-                        <div class="user-avatar">😊</div>
-                        <div class="bubble-user">
-                            {msg["content"]}
-                        </div>
-                    </div>
-                    """
-
-                else:
-
-                    chat_html += f"""
-                    <div class="assistant-msg">
-                        <div class="assistant-avatar">🤖</div>
-                        <div class="bubble-assistant">
-                            {msg["content"]}
-                        </div>
-                    </div>
-                    """
-
-        st.html(f"""
-        <div id="chat-window" class="chat-window">
-            {chat_html}
-        </div>
-
-        <script>
-
-        function scrollBottom(){{
-            const chat=document.getElementById("chat-window");
-            if(chat){{
-                chat.scrollTop=chat.scrollHeight;
-            }}
-        }}
-
-        scrollBottom();
-
-        new MutationObserver(scrollBottom)
-        .observe(
-            document.getElementById("chat-window"),
-            {{
-                childList:true,
-                subtree:true
-            }}
-        );
-
-        </script>
-        """)
-
-        advisor_q = st.chat_input("Ask anything about APIs...")
-
+        advisor_q = st.chat_input("Ask anything about APIs...", key="advisor_chat_input")
         if advisor_q:
-
-            st.session_state.advisor_history.append(
-                {
-                    "role":"user",
-                    "content":advisor_q
-                }
-            )
-
+            st.session_state.advisor_history.append({
+                "role": "user",
+                "content": advisor_q
+            })
             resp = ""
-
             with st.spinner("Thinking..."):
-
                 for token in _stream_advisor(
                     advisor_q,
                     st.session_state.advisor_history[:-1]
                 ):
                     resp += token
-
-            st.session_state.advisor_history.append(
-                {
-                    "role":"assistant",
-                    "content":resp
-                }
-            )
-
+            st.session_state.advisor_history.append({
+                "role": "assistant",
+                "content": resp
+            })
             st.rerun()
