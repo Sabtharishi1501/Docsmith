@@ -4,6 +4,8 @@ from core.indexer import build_index
 from core.parser import parse_endpoints
 from core.intent import filter_by_intent
 from core.codegen import generate_wrapper
+from core.testgen import generate_tests
+from core.postman import generate_postman_collection, collection_to_json
 
 
 def run_pipeline(
@@ -13,15 +15,11 @@ def run_pipeline(
     api_name: str = "API",
     max_pages: int = 15
 ) -> dict:
-    """
-    Main pipeline — runs all agents in sequence.
-    """
-    print("\n========== INTEGRAMIND PIPELINE START ==========")
+    print("\n========== DOCSMITH PIPELINE START ==========")
 
     # Step 1: Scrape
     print("\n[pipeline] Step 1: Scraping documentation...")
     scraped = scrape_docs(url, max_pages=max_pages)
-
     if not scraped["content"]:
         raise ValueError("Could not extract content from the provided URL.")
 
@@ -45,7 +43,16 @@ def run_pipeline(
     print("\n[pipeline] Step 6: Generating wrapper class...")
     code = generate_wrapper(parsed, intent, language, api_name)
 
-    print("\n========== INTEGRAMIND PIPELINE COMPLETE ==========")
+    # Step 7: Test generation
+    print("\n[pipeline] Step 7: Generating unit tests...")
+    tests = generate_tests(code, language, api_name)
+
+    # Step 8: Postman collection
+    print("\n[pipeline] Step 8: Generating Postman collection...")
+    postman_collection = generate_postman_collection(parsed, api_name)
+    postman_json = collection_to_json(postman_collection)
+
+    print("\n========== DOCSMITH PIPELINE COMPLETE ==========")
 
     return {
         "scraped": scraped,
@@ -53,6 +60,8 @@ def run_pipeline(
         "parsed": parsed,
         "intent": intent,
         "code": code,
+        "tests": tests,
+        "postman_json": postman_json,
         "api_name": api_name,
         "language": language
     }

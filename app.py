@@ -28,7 +28,6 @@ section[data-testid="stSidebar"] { display: none !important; }
     max-width: 100% !important;
 }
 
-/* Hero boxes */
 .hero-box {
     background: rgba(108,99,255,0.08);
     border: 1px solid rgba(108,99,255,0.2);
@@ -73,7 +72,6 @@ section[data-testid="stSidebar"] { display: none !important; }
 .step-text { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4; }
 .step-text b { color: #fff; display: block; margin-bottom: 2px; font-size: 12px; }
 
-/* Button overrides */
 .stButton button[kind="primary"] {
     background-color: #1D9E75 !important;
     border-color: #1D9E75 !important;
@@ -97,7 +95,6 @@ section[data-testid="stSidebar"] { display: none !important; }
 def render_md(text: str) -> str:
     import re
 
-    # ── Step 1: Extract code blocks and replace with placeholders ──
     code_blocks = {}
     counter = [0]
 
@@ -112,7 +109,6 @@ def render_md(text: str) -> str:
 
     text = re.sub(r'```(\w*)\n?([\s\S]*?)```', extract_code_block, text)
 
-    # ── Step 2: Inline formatting ──
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong style="color:#fff;font-weight:600">\1</strong>', text)
     text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
     text = re.sub(
@@ -121,7 +117,6 @@ def render_md(text: str) -> str:
         text
     )
 
-    # ── Step 3: Line-by-line processing ──
     lines = text.split('\n')
     result = []
     in_ul = False
@@ -137,7 +132,6 @@ def render_md(text: str) -> str:
             if in_table: result.append('</table>'); in_table = False
             continue
 
-        # Placeholder — restore code block as-is
         if s.startswith('__CODEBLOCK_') and s.endswith('__'):
             if in_ul: result.append('</ul>'); in_ul = False
             if in_ol: result.append('</ol>'); in_ol = False
@@ -145,7 +139,6 @@ def render_md(text: str) -> str:
             result.append(code_blocks.get(s, s))
             continue
 
-        # Bullet list
         if s.startswith('* ') or s.startswith('- '):
             if in_ol: result.append('</ol>'); in_ol = False
             if not in_ul:
@@ -153,7 +146,6 @@ def render_md(text: str) -> str:
                 in_ul = True
             result.append(f'<li style="margin-bottom:4px">{s[2:]}</li>')
 
-        # Numbered list
         elif re.match(r'^\d+\.\s', s):
             if in_ul: result.append('</ul>'); in_ul = False
             if not in_ol:
@@ -162,7 +154,6 @@ def render_md(text: str) -> str:
             content = re.sub(r'^\d+\.\s', '', s)
             result.append(f'<li style="margin-bottom:4px">{content}</li>')
 
-        # Table
         elif s.startswith('| ') and '|' in s[1:]:
             if in_ul: result.append('</ul>'); in_ul = False
             if in_ol: result.append('</ol>'); in_ol = False
@@ -182,7 +173,6 @@ def render_md(text: str) -> str:
             )
             result.append(f'<tr>{row}</tr>')
 
-        # Regular paragraph
         else:
             if in_ul: result.append('</ul>'); in_ul = False
             if in_ol: result.append('</ol>'); in_ol = False
@@ -200,8 +190,6 @@ def render_md(text: str) -> str:
 # CHAT BOX RENDERER
 # ════════════════════════════════════════
 def render_chat_box(messages: list, box_id: str = "chat-box", height: int = 420):
-    """Renders a fixed-height scrollable chat box using st.components."""
-
     chat_inner = ""
     if not messages:
         chat_inner = """
@@ -344,7 +332,7 @@ mode = st.session_state.mode
 
 
 # ════════════════════════════════════════
-# HEADER — Streamlit native (no HTML)
+# HEADER
 # ════════════════════════════════════════
 st.markdown(
     "<h2 style='text-align:center;margin:16px 0 2px 0'>⚒️ Docsmith</h2>",
@@ -356,7 +344,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Mode toggle — only these buttons, no HTML duplicates
 hc1, hc2, hc3 = st.columns([3, 2, 3])
 with hc2:
     b1, b2 = st.columns(2)
@@ -431,7 +418,7 @@ if st.session_state.mode == "helper":
         if not doc_url:
             st.error("Please provide a Documentation URL.")
         else:
-            with st.spinner("Analyzing... 30–60 seconds."):
+            with st.spinner("Analyzing... this takes 30–90 seconds."):
                 try:
                     result = run_pipeline(
                         url=doc_url,
@@ -459,21 +446,30 @@ if st.session_state.mode == "helper":
 
         left, right = st.columns([1, 1])
 
-        # ── RIGHT panel rendered FIRST and stored ──
-        # This prevents it from re-rendering on chat rerun
+        # ── RIGHT panel — code tabs ──
         with right:
             st.markdown("### ⚙️ Generated Code")
-            tab1, tab2 = st.tabs(["SDK / Wrapper Class", "Integration Summary"])
+
+            lang_map = {
+                "Python": "python", "JavaScript": "javascript",
+                "TypeScript": "typescript", "Java": "java"
+            }
+            ext = ("py" if language == "Python" else
+                   "js" if language == "JavaScript" else
+                   "ts" if language == "TypeScript" else "java")
+            test_ext = "py" if language == "Python" else "test.js"
+            file_name = f"{(api_name or 'api').lower().replace(' ','_')}_client.{ext}"
+            test_file = f"test_{(api_name or 'api').lower().replace(' ','_')}.{test_ext}"
+            postman_file = f"{(api_name or 'api').lower().replace(' ','_')}_collection.json"
+
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "SDK / Wrapper Class",
+                "Tests",
+                "Integration Summary",
+                "Postman Collection"
+            ])
 
             with tab1:
-                lang_map = {
-                    "Python": "python", "JavaScript": "javascript",
-                    "TypeScript": "typescript", "Java": "java"
-                }
-                ext = ("py" if language == "Python" else
-                       "js" if language == "JavaScript" else
-                       "ts" if language == "TypeScript" else "java")
-                file_name = f"{(api_name or 'api').lower().replace(' ','_')}_client.{ext}"
                 code_container = st.container(height=500)
                 with code_container:
                     st.code(result["code"],
@@ -487,6 +483,22 @@ if st.session_state.mode == "helper":
                 )
 
             with tab2:
+                if result.get("tests"):
+                    test_container = st.container(height=500)
+                    with test_container:
+                        st.code(result["tests"],
+                                language=lang_map.get(language, "python"))
+                    st.download_button(
+                        label=f"⬇️ Download {test_file}",
+                        data=result["tests"],
+                        file_name=test_file,
+                        mime="text/plain",
+                        key="download_tests_btn"
+                    )
+                else:
+                    st.info("Tests not available for this analysis.")
+
+            with tab3:
                 st.markdown(f"**Base URL:** `{parsed.get('base_url','N/A')}`")
                 st.markdown(f"**Auth Method:** {parsed.get('auth_method','N/A')}")
                 st.markdown(f"**Auth Header:** `{parsed.get('auth_header','N/A')}`")
@@ -496,6 +508,22 @@ if st.session_state.mode == "helper":
                     st.code(parsed.get("sdk_install", ""), language="bash")
                 st.markdown("**Integration Notes:**")
                 st.markdown(intent.get("explanation", ""))
+
+            with tab4:
+                if result.get("postman_json"):
+                    st.markdown("Import this file directly into Postman.")
+                    postman_container = st.container(height=500)
+                    with postman_container:
+                        st.code(result["postman_json"], language="json")
+                    st.download_button(
+                        label="⬇️ Download Postman Collection",
+                        data=result["postman_json"],
+                        file_name=postman_file,
+                        mime="application/json",
+                        key="download_postman_btn"
+                    )
+                else:
+                    st.info("Postman collection not available for this analysis.")
 
         # ── LEFT panel — chat ──
         with left:
@@ -561,8 +589,10 @@ if st.session_state.mode == "helper":
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
                     st.rerun()
 
-            question = st.chat_input("Ask anything about the API documentation...", key="doc_chat_input")
-
+            question = st.chat_input(
+                "Ask anything about the API documentation...",
+                key="doc_chat_input"
+            )
             if question:
                 st.session_state.chat_history.append({"role": "user", "content": question})
                 resp = ""
@@ -618,10 +648,12 @@ else:
     with right:
         st.markdown("### 💬 Chat")
 
-        # Fixed scrollable chat box via components
         render_chat_box(st.session_state.advisor_history, height=420)
 
-        advisor_q = st.chat_input("Ask anything about APIs...", key="advisor_chat_input")
+        advisor_q = st.chat_input(
+            "Ask anything about APIs...",
+            key="advisor_chat_input"
+        )
         if advisor_q:
             st.session_state.advisor_history.append({
                 "role": "user",
