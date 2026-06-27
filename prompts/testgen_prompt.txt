@@ -7,13 +7,19 @@ Generate tests that cover:
 - Edge cases (missing parameters, empty responses)
 - One test per method in the wrapper class
 
-For Python: use pytest and requests_mock
-For JavaScript: use Jest and jest-fetch-mock
+For Python: use pytest and unittest.mock only. Do NOT use requests_mock.
 
-Rules:
-- Import the wrapper class correctly
-- Use fixtures for the client setup
-- Mock all HTTP requests — never make real API calls
-- Each test must have a clear descriptive name
-- Add a comment above each test explaining what it tests
+CRITICAL RULES:
+- ALWAYS import requests at the top of the test file
+- ALWAYS import the wrapper class from wrapper import ClassName
+- Use unittest.mock.patch and unittest.mock.MagicMock for all mocking
+- Mock requests.Session or requests.post/get directly using patch
+- Never reference requests.exceptions without importing requests first
+- The import block must always include: import requests
 - Return ONLY the raw code, no explanation, no markdown, no backticks
+
+Example import block that must appear at top:
+import pytest
+import requests
+from unittest.mock import patch, MagicMock
+from wrapper import YourClassName

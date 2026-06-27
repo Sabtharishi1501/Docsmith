@@ -50,7 +50,6 @@ def chunk_text(
             })
             chunk_id += 1
 
-            # Keep last few paragraphs for overlap
             overlap_tokens = 0
             overlap_paras = []
             for p in reversed(current_chunk):

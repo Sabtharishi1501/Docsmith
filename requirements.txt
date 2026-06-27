@@ -11,3 +11,8 @@ tiktoken
 numpy
 scikit-learn
 markdown
+black
+ruff
+mypy
+pylint
+pytest

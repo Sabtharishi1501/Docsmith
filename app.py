@@ -72,6 +72,37 @@ section[data-testid="stSidebar"] { display: none !important; }
 .step-text { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4; }
 .step-text b { color: #fff; display: block; margin-bottom: 2px; font-size: 12px; }
 
+.note-box {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.7;
+}
+.note-box .note-title {
+    font-weight: 600;
+    color: #f59e0b;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+.note-box ol {
+    margin: 0 0 0 18px;
+    padding: 0;
+}
+.note-box li {
+    margin-bottom: 4px;
+}
+.note-box code {
+    background: rgba(255,255,255,0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
 .stButton button[kind="primary"] {
     background-color: #1D9E75 !important;
     border-color: #1D9E75 !important;
@@ -290,17 +321,62 @@ Use bullet points or tables where helpful. Always pick a winner when comparing."
             yield token
 
 
-def _stream_doc(question: str, index_data: dict, history: list):
+def _stream_doc(
+    question: str,
+    index_data: dict,
+    history: list,
+    parsed_data: dict = None
+):
     from core.retriever import retrieve_context
     context = retrieve_context(
         query=question, index_data=index_data, top_k=3, max_chars=2500
     )
     with open("prompts/qa_prompt.txt", "r") as f:
         base = f.read()
-    system = f"{base}\n\n--- DOCUMENTATION CONTEXT ---\n{context}\n--- END ---"
+
+    # Build endpoints section from parsed data
+    endpoints_section = ""
+    if parsed_data and parsed_data.get("endpoints"):
+        base_url = parsed_data.get("base_url", "")
+        auth_method = parsed_data.get("auth_method", "")
+        auth_header = parsed_data.get("auth_header", "")
+        ep_lines = []
+        for ep in parsed_data["endpoints"]:
+            method = ep.get("method", "?")
+            path = ep.get("path", "?")
+            desc = ep.get("description", "")
+            params = ep.get("parameters", [])
+            param_str = ", ".join(
+                f"{p.get('name')}({p.get('type','')})"
+                for p in params
+            ) if params else "none"
+            ep_lines.append(
+                f"  - {method} {path} — {desc} | params: {param_str}"
+            )
+        endpoints_section = f"""
+--- EXTRACTED API ENDPOINTS ---
+Base URL: {base_url}
+Auth Method: {auth_method}
+Auth Header: {auth_header}
+Endpoints:
+{chr(10).join(ep_lines)}
+--- END ENDPOINTS ---
+"""
+
+    system = f"""{base}
+
+{endpoints_section}
+
+--- DOCUMENTATION CONTEXT ---
+{context}
+--- END CONTEXT ---
+
+IMPORTANT: You have the extracted endpoints listed above. Always use them to answer questions about available endpoints, methods, paths, and parameters. Never say endpoints are not available if they are listed above."""
+
     messages = [{"role": "system", "content": system}]
     messages.extend(history[-4:])
     messages.append({"role": "user", "content": question})
+
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     stream = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -385,8 +461,8 @@ if st.session_state.mode == "helper":
             </div>
             <div class="hero-step">
                 <div class="step-num">2</div>
-                <div class="step-text"><b>Click Analyze</b>
-                Extracts endpoints, auth, generates wrapper class</div>
+                <div class="step-text"><b>Describe your use case</b>
+                e.g. "I want to charge a customer after checkout"</div>
             </div>
             <div class="hero-step">
                 <div class="step-num">3</div>
@@ -396,33 +472,46 @@ if st.session_state.mode == "helper":
             <div class="hero-step">
                 <div class="step-num">4</div>
                 <div class="step-text"><b>Download your code</b>
-                Python, JavaScript, TypeScript or Java</div>
+                Wrapper class, tests and Postman collection</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        doc_url = st.text_input("Documentation URL",
-                                placeholder="https://docs.stripe.com/api")
-    with col2:
-        language = st.selectbox("Language",
-                                ["Python", "JavaScript", "TypeScript", "Java"])
+    left_inputs, right_inputs = st.columns([1, 1])
 
-    api_name = st.text_input("API Name (optional)",
-                             placeholder="e.g. Stripe, GitHub, Razorpay")
+    with left_inputs:
+        doc_url = st.text_input(
+            "Documentation URL",
+            placeholder="e.g. https://docs.stripe.com/api"
+        )
+        api_name = st.text_input(
+            "API Name (optional)",
+            placeholder="e.g. Stripe, GitHub, Razorpay"
+        )
+
+    with right_inputs:
+        language = st.selectbox(
+            "Preferred Language",
+            ["Python", "JavaScript", "TypeScript", "Java"]
+        )
+        use_case = st.text_area(
+            "Use Case — describe what you want to build",
+            height=100
+        )
 
     if st.button("🔍 Analyze Documentation", type="primary",
                  use_container_width=True):
         if not doc_url:
             st.error("Please provide a Documentation URL.")
+        elif not use_case:
+            st.error("Please describe your use case so Docsmith can filter the right endpoints.")
         else:
             with st.spinner("Analyzing... this takes 30–90 seconds."):
                 try:
                     result = run_pipeline(
                         url=doc_url,
-                        use_case="extract all endpoints authentication methods base URL and SDK information",
+                        use_case=use_case,
                         language=language,
                         api_name=api_name or "API",
                         max_pages=15
@@ -432,7 +521,8 @@ if st.session_state.mode == "helper":
                     st.session_state.chat_history = []
                     st.success(
                         f"✅ Scraped {result['scraped']['pages_scraped']} pages. "
-                        f"Found {len(result['parsed'].get('endpoints', []))} endpoints."
+                        f"Found {len(result['parsed'].get('endpoints', []))} endpoints. "
+                        f"Ask anything in the chat!"
                     )
                 except Exception as e:
                     st.error(f"Pipeline error: {e}")
@@ -457,14 +547,11 @@ if st.session_state.mode == "helper":
             ext = ("py" if language == "Python" else
                    "js" if language == "JavaScript" else
                    "ts" if language == "TypeScript" else "java")
-            test_ext = "py" if language == "Python" else "test.js"
             file_name = f"{(api_name or 'api').lower().replace(' ','_')}_client.{ext}"
-            test_file = f"test_{(api_name or 'api').lower().replace(' ','_')}.{test_ext}"
             postman_file = f"{(api_name or 'api').lower().replace(' ','_')}_collection.json"
 
-            tab1, tab2, tab3, tab4 = st.tabs([
+            tab1, tab2, tab3 = st.tabs([
                 "SDK / Wrapper Class",
-                "Tests",
                 "Integration Summary",
                 "Postman Collection"
             ])
@@ -483,22 +570,6 @@ if st.session_state.mode == "helper":
                 )
 
             with tab2:
-                if result.get("tests"):
-                    test_container = st.container(height=500)
-                    with test_container:
-                        st.code(result["tests"],
-                                language=lang_map.get(language, "python"))
-                    st.download_button(
-                        label=f"⬇️ Download {test_file}",
-                        data=result["tests"],
-                        file_name=test_file,
-                        mime="text/plain",
-                        key="download_tests_btn"
-                    )
-                else:
-                    st.info("Tests not available for this analysis.")
-
-            with tab3:
                 st.markdown(f"**Base URL:** `{parsed.get('base_url','N/A')}`")
                 st.markdown(f"**Auth Method:** {parsed.get('auth_method','N/A')}")
                 st.markdown(f"**Auth Header:** `{parsed.get('auth_header','N/A')}`")
@@ -509,10 +580,23 @@ if st.session_state.mode == "helper":
                 st.markdown("**Integration Notes:**")
                 st.markdown(intent.get("explanation", ""))
 
-            with tab4:
+            with tab3:
+                st.markdown("""
+                <div class="note-box">
+                    <div class="note-title">📬 How to use the Postman Collection</div>
+                    <ol>
+                        <li>Download the collection file using the button below</li>
+                        <li>Open <strong>Postman</strong> on your computer</li>
+                        <li>Click <strong>Import</strong> → select the downloaded <code>.json</code> file</li>
+                        <li>Go to the collection → click <strong>Variables</strong></li>
+                        <li>Set <code>api_key</code> to your actual API key</li>
+                        <li>Every endpoint is now ready — click <strong>Send</strong> on any request</li>
+                    </ol>
+                </div>
+                """, unsafe_allow_html=True)
+
                 if result.get("postman_json"):
-                    st.markdown("Import this file directly into Postman.")
-                    postman_container = st.container(height=500)
+                    postman_container = st.container(height=400)
                     with postman_container:
                         st.code(result["postman_json"], language="json")
                     st.download_button(
@@ -559,8 +643,12 @@ if st.session_state.mode == "helper":
                     st.session_state.chat_history.append({"role": "user", "content": q})
                     resp = ""
                     with st.spinner("Generating..."):
-                        for token in _stream_doc(q, st.session_state.index_data,
-                                                  st.session_state.chat_history[:-1]):
+                        for token in _stream_doc(
+                            q,
+                            st.session_state.index_data,
+                            st.session_state.chat_history[:-1],
+                            parsed_data=parsed
+                        ):
                             resp += token
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
                     st.rerun()
@@ -571,8 +659,12 @@ if st.session_state.mode == "helper":
                     st.session_state.chat_history.append({"role": "user", "content": q})
                     resp = ""
                     with st.spinner("Thinking..."):
-                        for token in _stream_doc(q, st.session_state.index_data,
-                                                  st.session_state.chat_history[:-1]):
+                        for token in _stream_doc(
+                            q,
+                            st.session_state.index_data,
+                            st.session_state.chat_history[:-1],
+                            parsed_data=parsed
+                        ):
                             resp += token
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
                     st.rerun()
@@ -583,8 +675,12 @@ if st.session_state.mode == "helper":
                     st.session_state.chat_history.append({"role": "user", "content": q})
                     resp = ""
                     with st.spinner("Thinking..."):
-                        for token in _stream_doc(q, st.session_state.index_data,
-                                                  st.session_state.chat_history[:-1]):
+                        for token in _stream_doc(
+                            q,
+                            st.session_state.index_data,
+                            st.session_state.chat_history[:-1],
+                            parsed_data=parsed
+                        ):
                             resp += token
                     st.session_state.chat_history.append({"role": "assistant", "content": resp})
                     st.rerun()
@@ -600,7 +696,8 @@ if st.session_state.mode == "helper":
                     for token in _stream_doc(
                         question,
                         st.session_state.index_data,
-                        st.session_state.chat_history[:-1]
+                        st.session_state.chat_history[:-1],
+                        parsed_data=parsed
                     ):
                         resp += token
                 st.session_state.chat_history.append({"role": "assistant", "content": resp})
@@ -610,7 +707,7 @@ if st.session_state.mode == "helper":
         st.markdown(
             "<p style='color:rgba(255,255,255,0.4);font-size:14px;"
             "text-align:center;margin-top:10px'>"
-            "👆 Paste a doc URL and click "
+            "👆 Fill in the URL and use case above, then click "
             "<b style='color:#fff'>Analyze Documentation</b> to get started.</p>",
             unsafe_allow_html=True
         )

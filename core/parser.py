@@ -16,32 +16,34 @@ def load_prompt() -> str:
 
 def parse_endpoints(scraped_data: dict, index_data: dict) -> dict:
     """
-    Uses hybrid RAG + Groq to extract structured endpoints and auth
-    from the scraped documentation.
+    Single-call parser — retrieves top chunks and parses all at once.
+    Much faster than chunk-by-chunk iteration.
     """
     print("[parser] Retrieving relevant chunks...")
-    context = retrieve_context(
-        query="API endpoints authentication base URL SDK",
-        index_data=index_data,
-        top_k=3,
-        max_chars=3000
-    )
 
+    # Get top relevant chunks in one retrieval call
+    context = retrieve_context(
+        query="POST GET DELETE PUT PATCH endpoint path parameters authentication API key bearer token base URL",
+        index_data=index_data,
+        top_k=6,
+        max_chars=5000
+    )
     system_prompt = load_prompt()
     user_message = f"""Here is the API documentation:
 
 {context}
 
-Extract all endpoints, authentication method, base URL, and SDK information from this documentation."""
+Extract all endpoints, authentication method, base URL, and SDK information."""
 
-    print("[parser] Calling Groq...")
+    print("[parser] Calling Groq (single call)...")
+
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
         ],
-        temperature=0.1,
+        temperature=0,
         max_tokens=2048
     )
 

@@ -23,7 +23,11 @@ Return ONLY a valid JSON object with this exact structure:
 }
 
 Rules:
-- Extract ALL endpoints you find in the documentation
+- Look for HTTP methods (GET, POST, PUT, DELETE, PATCH) followed by URL paths
+- Look for endpoint patterns like /v1/charges, /api/users, /payments etc
+- Extract ALL endpoints you can find — even if description is partial
 - For auth_method use one of: "API Key in Header", "Bearer Token", "OAuth 2.0", "Basic Auth", "No Auth"
-- If no official SDK exists set sdk_available to false and sdk_name to null
+- If you find ANY endpoints, include them all
+- If no official SDK is mentioned set sdk_available to false and sdk_name to null
 - Return ONLY the JSON, no explanation, no markdown, no backticks
+- If you cannot find endpoints, return an empty endpoints array but still return valid JSON

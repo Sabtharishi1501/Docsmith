@@ -148,4 +148,4 @@ def generate_postman_collection(
 
 def collection_to_json(collection: dict) -> str:
     """Returns the collection as a formatted JSON string."""
-    return json.dumps(collection, indent=2)
+    return json.dumps(collection, indent=2, ensure_ascii=False, default=str)
