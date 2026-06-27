@@ -99,5 +99,5 @@ IMPORTANT: You have the extracted endpoints listed above. Always use them to ans
     )
 
     answer = response.choices[0].message.content.strip()
-    print("[qa_agent] Answer generated")
+    print("[qa_agent] Answer generated...")
     return answer
