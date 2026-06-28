@@ -1,103 +1,87 @@
-import pytest
-import requests
-from unittest.mock import patch, MagicMock
-from wrapper import StripeAPI
+import axios from 'axios';
+import StripeAPI from './StripeAPI';
 
-def test_init():
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    assert stripe_api.base_url == "https://api.stripe.com"
-    assert stripe_api.api_key == api_key
-    assert stripe_api.headers["Authorization"] == f"Bearer {api_key}"
-    assert stripe_api.headers["Content-Type"] == "application/x-www-form-urlencoded"
+jest.mock('axios');
 
-@patch("requests.post")
-def test_create_charge_success(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = 1000
-    currency = "usd"
-    customer = "cus_123456789"
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"id": "ch_123456789", "amount": amount, "currency": currency, "customer": customer}
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-    charge = stripe_api.create_charge(amount, currency, customer)
-    assert charge["id"] == "ch_123456789"
-    assert charge["amount"] == amount
-    assert charge["currency"] == currency
-    assert charge["customer"] == customer
+describe('StripeAPI', () => {
+  const apiKey = 'YOUR_API_KEY';
+  const baseUrl = 'https://api.stripe.com/v1';
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/x-www-form-urlencoded'
+  };
 
-@patch("requests.post")
-def test_create_charge_401_unauthorized(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = 1000
-    currency = "usd"
-    customer = "cus_123456789"
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("401 Unauthorized")
-    mock_post.return_value = mock_response
-    charge = stripe_api.create_charge(amount, currency, customer)
-    assert charge is None
+  let stripeApi;
 
-@patch("requests.post")
-def test_create_charge_404_not_found(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = 1000
-    currency = "usd"
-    customer = "cus_123456789"
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
-    mock_post.return_value = mock_response
-    charge = stripe_api.create_charge(amount, currency, customer)
-    assert charge is None
+  beforeEach(() => {
+    stripeApi = new StripeAPI(apiKey);
+  });
 
-@patch("requests.post")
-def test_create_charge_500_server_error(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = 1000
-    currency = "usd"
-    customer = "cus_123456789"
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error")
-    mock_post.return_value = mock_response
-    charge = stripe_api.create_charge(amount, currency, customer)
-    assert charge is None
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-@patch("requests.post")
-def test_create_charge_invalid_input(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = "invalid_amount"
-    currency = "usd"
-    customer = "cus_123456789"
-    with pytest.raises(TypeError):
-        stripe_api.create_charge(amount, currency, customer)
+  describe('createInvoicePreview', () => {
+    it('should create invoice preview successfully', async () => {
+      const invoiceData = { amount: 100, currency: 'usd' };
+      const response = { id: 'inv_123', amount: 100, currency: 'usd' };
+      axios.post.mockResolvedValue({ status: 200, data: response });
 
-@patch("requests.post")
-def test_create_charge_empty_response(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = 1000
-    currency = "usd"
-    customer = "cus_123456789"
-    mock_response = MagicMock()
-    mock_response.json.return_value = {}
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-    charge = stripe_api.create_charge(amount, currency, customer)
-    assert charge == {}
+      const result = await stripeApi.createInvoicePreview(invoiceData);
+      expect(result).toEqual(response);
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(axios.post).toHaveBeenCalledWith(`${baseUrl}/invoices`, expect.any(String), { headers });
+    });
 
-@patch("requests.post")
-def test_create_charge_request_exception(mock_post):
-    api_key = "test_api_key"
-    stripe_api = StripeAPI(api_key)
-    amount = 1000
-    currency = "usd"
-    customer = "cus_123456789"
-    mock_post.side_effect = requests.exceptions.RequestException("Test request exception")
-    charge = stripe_api.create_charge(amount, currency, customer)
-    assert charge is None
+    it('should throw error for invalid input', async () => {
+      const invoiceData = null;
+      await expect(stripeApi.createInvoicePreview(invoiceData)).rejects.toThrowError('Error creating invoice preview: Cannot read properties of null (reading \'toString\')');
+    });
+
+    it('should throw error for HTTP error', async () => {
+      const invoiceData = { amount: 100, currency: 'usd' };
+      axios.post.mockRejectedValue({ response: { status: 401, statusText: 'Unauthorized' } });
+
+      await expect(stripeApi.createInvoicePreview(invoiceData)).rejects.toThrowError('Error creating invoice preview: HTTP error! status: 401');
+    });
+
+    it('should throw error for server error', async () => {
+      const invoiceData = { amount: 100, currency: 'usd' };
+      axios.post.mockRejectedValue(new Error('Server error'));
+
+      await expect(stripeApi.createInvoicePreview(invoiceData)).rejects.toThrowError('Error creating invoice preview: Server error');
+    });
+  });
+
+  describe('createCustomer', () => {
+    it('should create customer successfully', async () => {
+      const customerData = { name: 'John Doe', email: 'john@example.com' };
+      const response = { id: 'cus_123', name: 'John Doe', email: 'john@example.com' };
+      axios.post.mockResolvedValue({ status: 200, data: response });
+
+      const result = await stripeApi.createCustomer(customerData);
+      expect(result).toEqual(response);
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(axios.post).toHaveBeenCalledWith(`${baseUrl}/customers`, expect.any(String), { headers });
+    });
+
+    it('should throw error for invalid input', async () => {
+      const customerData = null;
+      await expect(stripeApi.createCustomer(customerData)).rejects.toThrowError('Error creating customer: Cannot read properties of null (reading \'toString\')');
+    });
+
+    it('should throw error for HTTP error', async () => {
+      const customerData = { name: 'John Doe', email: 'john@example.com' };
+      axios.post.mockRejectedValue({ response: { status: 404, statusText: 'Not Found' } });
+
+      await expect(stripeApi.createCustomer(customerData)).rejects.toThrowError('Error creating customer: HTTP error! status: 404');
+    });
+
+    it('should throw error for server error', async () => {
+      const customerData = { name: 'John Doe', email: 'john@example.com' };
+      axios.post.mockRejectedValue(new Error('Server error'));
+
+      await expect(stripeApi.createCustomer(customerData)).rejects.toThrowError('Error creating customer: Server error');
+    });
+  });
+});

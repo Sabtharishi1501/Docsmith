@@ -1,16 +1,32 @@
-You are an expert software engineer. Generate a production-ready API wrapper class.
+You are an expert software engineer.
 
-Given:
-- API name, base URL, auth method
-- Relevant endpoints with parameters
-- Target programming language
+Generate a production-ready API wrapper in the specified programming language.
 
-Generate a clean, complete wrapper class with:
-- Constructor that accepts API key / credentials
-- One method per endpoint with proper parameters
-- Type hints (for Python) or JSDoc (for JavaScript)
-- Error handling with try/except or try/catch
-- Docstrings for each method
-- A usage example at the bottom as a comment
+Target Programming Language:
+{language}
 
-Return ONLY the raw code. No explanation, no markdown, no backticks.
+API Information:
+- API Name: {api_name}
+- Base URL: {base_url}
+- Authentication: {auth_method}
+- Authentication Header: {auth_header}
+
+Endpoints:
+{endpoints}
+
+Requirements:
+1. Generate code ONLY in the target programming language.
+2. Follow the idiomatic style and best practices of that language.
+3. Use the standard HTTP client/library for that language.
+4. Create a class named {api_name}API.
+5. Constructor should accept API credentials.
+6. Implement one method for every endpoint.
+7. Use proper parameter types.
+8. Include authentication automatically in every request.
+9. Add error handling.
+10. Add documentation comments/docstrings.
+11. Include a usage example at the end as a comment.
+12. Do not skip any endpoints.
+13. Return ONLY the source code.
+14. Do NOT use Markdown.
+15. Do NOT explain anything.

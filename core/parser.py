@@ -3,6 +3,7 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 from core.retriever import retrieve_context
+from core.endpoint_extractor import extract_candidates
 
 load_dotenv()
 
@@ -14,29 +15,87 @@ def load_prompt() -> str:
         return f.read()
 
 
-def parse_endpoints(scraped_data: dict, index_data: dict) -> dict:
+def parse_endpoints(
+    scraped_data: dict,
+    index_data: dict,
+    seed_endpoints: list | None = None,
+) -> dict:
     """
-    Single-call parser — retrieves top chunks and parses all at once.
-    Much faster than chunk-by-chunk iteration.
+    Parses API documentation into structured endpoint definitions.
+
+    Args:
+        scraped_data:    Output from scrape_docs()
+        index_data:      Output from build_index()
+        seed_endpoints:  Optional list of {method, path} dicts already
+                         extracted by the scraper — skips re-extraction
+                         when provided, saving time and improving accuracy.
     """
     print("[parser] Retrieving relevant chunks...")
 
-    # Get top relevant chunks in one retrieval call
+    # Use RAG retrieval instead of a raw content slice —
+    # this pulls the most relevant chunks regardless of total doc size
     context = retrieve_context(
-        query="POST GET DELETE PUT PATCH endpoint path parameters authentication API key bearer token base URL",
+        query="API endpoints authentication base URL parameters",
         index_data=index_data,
         top_k=6,
-        max_chars=5000
+        max_chars=8000,
     )
+
+    # Use seeds if provided, otherwise fall back to regex extraction
+    if seed_endpoints:
+        print(f"[parser] Using {len(seed_endpoints)} pre-extracted endpoints from scraper")
+        candidate_endpoints = [
+            {"method": ep["method"], "path": ep["path"]}
+            for ep in seed_endpoints
+        ]
+    else:
+        print("[parser] No seed endpoints — running regex extraction...")
+        candidate_endpoints = extract_candidates(context)
+
+    print("[parser] Candidate endpoints:")
+    for ep in candidate_endpoints:
+        print(f"  {ep['method']} {ep['path']}")
+
     system_prompt = load_prompt()
-    user_message = f"""Here is the API documentation:
+    endpoint_list = "\n".join(
+        f"{ep['method']} {ep['path']}"
+        for ep in candidate_endpoints
+    )
+
+    user_message = f"""
+The following API endpoints have already been extracted from the documentation:
+
+{endpoint_list}
+
+Documentation:
 
 {context}
 
-Extract all endpoints, authentication method, base URL, and SDK information."""
+Your task:
+1. Use ONLY the endpoints listed above — do NOT invent new ones.
+2. For each endpoint extract:
+   - description
+   - parameters (name, type, required, description)
+   - returns
+3. Also extract:
+   - base_url
+   - auth_method
+   - auth_header
+   - sdk_available (true/false)
+   - sdk_name
+   - sdk_install
+4. For any endpoint whose method is "?", infer the correct HTTP method
+   from REST conventions and its description:
+   - Retrieve / List / Get → GET
+   - Create / Add / Submit → POST
+   - Update / Modify (full) → PUT
+   - Update / Modify (partial) → PATCH
+   - Delete / Remove → DELETE
 
-    print("[parser] Calling Groq (single call)...")
+Return ONLY valid JSON, no markdown fences.
+"""
 
+    print("[parser] Calling Groq...")
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
@@ -59,6 +118,7 @@ Extract all endpoints, authentication method, base URL, and SDK information."""
         return parsed
     except json.JSONDecodeError as e:
         print(f"[parser] JSON parse error: {e}")
+        # Return seeds as bare endpoints so pipeline can continue
         return {
             "base_url": "",
             "auth_method": "Unknown",
@@ -66,5 +126,9 @@ Extract all endpoints, authentication method, base URL, and SDK information."""
             "sdk_available": False,
             "sdk_name": None,
             "sdk_install": None,
-            "endpoints": []
+            "endpoints": [
+                {"method": ep["method"], "path": ep["path"],
+                 "description": "", "parameters": [], "returns": ""}
+                for ep in candidate_endpoints
+            ]
         }

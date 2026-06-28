@@ -20,6 +20,7 @@ def answer_question(
     chat_history: list = [],
     parsed_data: dict = None
 ) -> str:
+    chat_history = chat_history
     """
     Answers a developer's question using hybrid RAG over the indexed docs.
     Also injects extracted endpoints directly so the agent always knows them.

@@ -400,6 +400,10 @@ for key, val in {
     "advisor_history": [],
     "last_chat_len": 0,
     "last_advisor_len": 0,
+    "saved_doc_url": "",        
+    "saved_api_name": "", 
+    "saved_language": "Python",
+    "saved_use_case": "" ,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = val
@@ -483,21 +487,31 @@ if st.session_state.mode == "helper":
     with left_inputs:
         doc_url = st.text_input(
             "Documentation URL",
-            placeholder="e.g. https://docs.stripe.com/api"
+            placeholder="e.g. https://docs.stripe.com/api",
+            value=st.session_state.get("saved_doc_url", ""),
+            key="doc_url_input"
         )
         api_name = st.text_input(
             "API Name (optional)",
-            placeholder="e.g. Stripe, GitHub, Razorpay"
+            placeholder="e.g. Stripe, GitHub, Razorpay",
+            value=st.session_state.get("saved_api_name", ""),
+            key="api_name_input"
         )
 
     with right_inputs:
         language = st.selectbox(
             "Preferred Language",
-            ["Python", "JavaScript", "TypeScript", "Java"]
+            ["Python", "JavaScript", "TypeScript", "Java"],
+            index=["Python", "JavaScript", "TypeScript", "Java"].index(
+                st.session_state.get("saved_language", "Python")
+            ),
+            key="language_input"
         )
         use_case = st.text_area(
             "Use Case — describe what you want to build",
-            height=100
+            value=st.session_state.get("saved_use_case", ""),
+            height=100,
+            key="use_case_input"
         )
 
     if st.button("🔍 Analyze Documentation", type="primary",
@@ -507,6 +521,12 @@ if st.session_state.mode == "helper":
         elif not use_case:
             st.error("Please describe your use case so Docsmith can filter the right endpoints.")
         else:
+            # Save inputs to session state so they persist on tab switch
+            st.session_state.saved_doc_url = doc_url
+            st.session_state.saved_api_name = api_name
+            st.session_state.saved_language = language
+            st.session_state.saved_use_case = use_case
+
             with st.spinner("Analyzing... this takes 30–90 seconds."):
                 try:
                     result = run_pipeline(
@@ -622,9 +642,12 @@ if st.session_state.mode == "helper":
                 else:
                     st.warning("📦 **SDK:** Use REST")
 
-            with st.expander(
-                f"📋 All endpoints ({len(parsed.get('endpoints', []))})"
-            ):
+            # ── Scrollable endpoints box ──
+            st.markdown(
+                f"**📋 All endpoints ({len(parsed.get('endpoints', []))})**"
+            )
+            endpoint_container = st.container(height=200)
+            with endpoint_container:
                 for ep in parsed.get("endpoints", []):
                     st.markdown(
                         f"- `{ep.get('method','?')} {ep.get('path','?')}` "
