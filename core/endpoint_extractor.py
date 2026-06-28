@@ -2,13 +2,9 @@ import re
 
 def extract_candidates(text):
     patterns = [
-        # Standard: "POST /v1/charges"
         r"(GET|POST|PUT|PATCH|DELETE)\s+(/[A-Za-z0-9_./{}:-]+)",
-        # Method on its own line, path on next: "POST\n/v1/charges"
         r"(GET|POST|PUT|PATCH|DELETE)\s*\n\s*(/[A-Za-z0-9_./{}:-]+)",
-        # Path in backticks/quotes near a method word
         r"(get|post|put|patch|delete)[`'\"\s]+(/v\d+/[A-Za-z0-9_./{}:-]+)",
-        # Just versioned paths — method unknown
         r"(?<!['\"/\w])(/v\d+/[A-Za-z0-9_./{}:-]{4,})",
     ]
 

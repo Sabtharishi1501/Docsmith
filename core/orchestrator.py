@@ -20,7 +20,7 @@ def run_pipeline(
     use_case: str,
     language: str,
     api_name: str = "API",
-    max_pages: int = 40,          # raised — more pages = better endpoint coverage
+    max_pages: int = 40,          
 ) -> dict:
 
     print("\n========== DOCSMITH PIPELINE START ==========")
@@ -41,7 +41,7 @@ def run_pipeline(
     for page in scraped["pages"]:
         page_chunks = chunk_text(page["text"], chunk_size=500, overlap=50)
         for chunk in page_chunks:
-            chunk["source"] = page["url"]   # attach URL to every chunk
+            chunk["source"] = page["url"]   
         all_chunks.extend(page_chunks)
     chunks = all_chunks
 
@@ -54,7 +54,7 @@ def run_pipeline(
     parsed = parse_endpoints(
         scraped,
         index_data,
-        seed_endpoints=scraped["endpoints"],   # <-- NEW: pass pre-extracted endpoints
+        seed_endpoints=scraped["endpoints"],   
     )
 
     if not isinstance(parsed, dict):

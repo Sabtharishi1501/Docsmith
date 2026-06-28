@@ -33,7 +33,6 @@ def parse_endpoints(
     print("[parser] Retrieving relevant chunks...")
 
     # Use RAG retrieval instead of a raw content slice —
-    # this pulls the most relevant chunks regardless of total doc size
     context = retrieve_context(
         query="API endpoints authentication base URL parameters",
         index_data=index_data,
@@ -118,7 +117,7 @@ Return ONLY valid JSON, no markdown fences.
         return parsed
     except json.JSONDecodeError as e:
         print(f"[parser] JSON parse error: {e}")
-        # Return seeds as bare endpoints so pipeline can continue
+
         return {
             "base_url": "",
             "auth_method": "Unknown",

@@ -7,8 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import deque
 
 
-# ── URL helpers ────────────────────────────────────────────────────────────────
-
 def get_base_domain(url: str) -> str:
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}"
@@ -24,7 +22,6 @@ def clean_url(url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
 
-# Hard-skip patterns — never useful for API endpoint extraction
 SKIP_PATTERNS = [
     "/changelog", "/blog", "/pricing", "/login", "/signup",
     "/register", "/careers", "/about", "/contact", "/press",
@@ -34,7 +31,6 @@ SKIP_PATTERNS = [
     "javascript:", "mailto:", "#",
 ]
 
-# Boost score for these patterns
 PRIORITY_PATTERNS = [
     "/api/", "/reference", "/endpoints", "/rest", "/v1/", "/v2/", "/v3/",
     "/authentication", "/quickstart", "/getting-started", "/guides",
@@ -60,8 +56,6 @@ def should_skip(url: str) -> bool:
     return any(p in url_lower for p in SKIP_PATTERNS)
 
 
-# ── Page fetching ──────────────────────────────────────────────────────────────
-
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Docsmith/1.0)"}
 
 
@@ -86,7 +80,6 @@ def scrape_page(url: str) -> tuple[str, str | None]:
     if not html:
         return "", None
 
-    # Primary: trafilatura
     text = trafilatura.extract(
         html,
         include_comments=False,
@@ -96,7 +89,6 @@ def scrape_page(url: str) -> tuple[str, str | None]:
         favor_recall=True,
     ) or ""
 
-    # Fallback: BeautifulSoup when trafilatura is too aggressive
     if len(text) < 200:
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header"]):
@@ -125,7 +117,6 @@ def get_links(url: str, base_domain: str, html: str | None = None) -> list[str]:
     return list(set(links))
 
 
-# ── Parallel worker ────────────────────────────────────────────────────────────
 
 def scrape_single(args: tuple) -> tuple:
     """Returns (url, text, html) so the crawl loop can reuse the html."""
@@ -140,26 +131,20 @@ def scrape_single(args: tuple) -> tuple:
 HTTP_METHODS = r"(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)"
 
 ENDPOINT_PATTERNS = [
-    # "GET /v1/charges"
     re.compile(rf"\b({HTTP_METHODS})\s+(/[\w/{{}}:.-]+)", re.IGNORECASE),
-    # Method on its own line, path on next
     re.compile(rf"({HTTP_METHODS})\s*\n\s*(/[\w/{{}}:.-]+)", re.IGNORECASE | re.MULTILINE),
-    # Path in backticks/quotes: "`/v1/charges`"
     re.compile(r"[`'\"](/(?:v\d+/|api/)[\w/{}:.-]+)[`'\"]"),
-    # Plain versioned paths: /v1/customers/{id}
     re.compile(r"\b(/(?:v\d+|api)/[\w/{}:.-]{4,})\b"),
 ]
 
 
-# Matches ONLY real Stripe ID segments — must have a known prefix + underscore + 8+ alphanum chars
-# or be a pure numeric ID. Plain words like "accounts" are NOT matched.
 _REAL_ID_RE = re.compile(
-    r"(?<=/)"                                           # must follow a slash
+    r"(?<=/)"                                       
     r"("
-    r"[a-z]{1,12}_(?:test_)?[A-Za-z0-9]{8,}"          # prefixed: tr_xxx, ctoken_xxx, mtr_test_xxx
-    r"|[0-9]{6,}"                                       # pure numeric: 123456789
+    r"[a-z]{1,12}_(?:test_)?[A-Za-z0-9]{8,}"         
+    r"|[0-9]{6,}"                                      
     r")"
-    r"(?=/|$)"                                          # must be followed by slash or end
+    r"(?=/|$)"                                          
 )
 
 
@@ -168,9 +153,8 @@ def normalize_path(path: str) -> str:
     Replace real Stripe ID segments with {id} placeholder.
     Strips trailing slash. Collapses consecutive {id}/{id} into {id}.
     """
-    path = path.rstrip("/")                             # remove trailing slash
-    path = _REAL_ID_RE.sub("{id}", path)                # replace real IDs
-    # Collapse double {id}/{id} that can appear when two ID segments are adjacent
+    path = path.rstrip("/")                             
+    path = _REAL_ID_RE.sub("{id}", path)                
     path = re.sub(r"\{id\}/\{id\}", "{id}", path)
     return path
 
@@ -184,14 +168,13 @@ def extract_endpoints_from_html(html: str, source_url: str) -> list[dict]:
     seen = set()
     results = []
 
-    # Strategy 1: find text nodes that are exactly an HTTP method,
-    # then walk UP to 5 ancestors to find a sibling path element.
+
     for tag in soup.find_all(string=re.compile(
         r"^\s*(GET|POST|PUT|PATCH|DELETE)\s*$", re.IGNORECASE
     )):
         method = tag.strip().upper()
         node = tag.parent
-        for _ in range(5):                       # walk up to 5 levels up
+        for _ in range(5):                      
             if node is None:
                 break
             nearby_text = node.get_text(" ", strip=True)
@@ -209,7 +192,6 @@ def extract_endpoints_from_html(html: str, source_url: str) -> list[dict]:
                 break
             node = node.parent
 
-    # Strategy 2: multi-pattern regex over full page text
     full_text = soup.get_text(separator="\n")
     for pattern in ENDPOINT_PATTERNS:
         for match in pattern.finditer(full_text):
@@ -268,7 +250,6 @@ def extract_endpoints(pages: list[dict]) -> list[dict]:
     method_order = {"GET": 0, "POST": 1, "PUT": 2, "PATCH": 3, "DELETE": 4}
     results.sort(key=lambda e: (method_order.get(e["method"], 9), e["path"]))
 
-    # Drop duplicates caused by trailing slashes — keep the cleaner path
     seen_clean: set[str] = set()
     deduped = []
     for ep in results:
@@ -279,7 +260,6 @@ def extract_endpoints(pages: list[dict]) -> list[dict]:
     return deduped
 
 
-# ── Answer generator ───────────────────────────────────────────────────────────
 
 def answer_query(query: str, pages: list[dict], endpoints: list[dict]) -> str:
     """
@@ -321,8 +301,6 @@ def answer_query(query: str, pages: list[dict], endpoints: list[dict]) -> str:
     return "\n\n---\n\n".join(snippets)
 
 
-# ── Main crawl ─────────────────────────────────────────────────────────────────
-
 def scrape_docs(
     start_url: str,
     max_pages: int = 40,
@@ -345,7 +323,7 @@ def scrape_docs(
     base_domain = get_base_domain(start_url)
     visited: set[str] = set()
     pages: list[dict] = []
-    all_html_endpoints: list[dict] = []  # collected from raw HTML across all pages
+    all_html_endpoints: list[dict] = []  
 
     queue: deque[str] = deque()
     queue.append(start_url)
@@ -367,18 +345,15 @@ def scrape_docs(
             futures = {executor.submit(scrape_single, a): a for a in args_list}
             for future in as_completed(futures):
                 try:
-                    url, text, html = future.result()  # now unpacks html too
+                    url, text, html = future.result()  
 
                     if text:
                         pages.append({"url": url, "text": text})
 
-                    # Extract endpoints from raw HTML while we have it —
-                    # avoids a second fetch and catches badge-style markup
                     if html:
                         html_eps = extract_endpoints_from_html(html, url)
                         all_html_endpoints.extend(html_eps)
 
-                        # Reuse html for link discovery — no second fetch
                         if len(visited) < max_pages:
                             new_links = get_links(url, base_domain, html)
                             new_links.sort(key=url_priority)
@@ -390,10 +365,8 @@ def scrape_docs(
                 except Exception as e:
                     print(f"[scraper] Thread error: {e}")
 
-    # Merge: HTML-extracted endpoints + text-pattern endpoints
     text_endpoints = extract_endpoints(pages)
 
-    # Deduplicate across both sources, preferring HTML (more accurate method)
     seen_keys: set[str] = set()
     endpoints: list[dict] = []
     for ep in all_html_endpoints + text_endpoints:
@@ -402,12 +375,9 @@ def scrape_docs(
             seen_keys.add(key)
             endpoints.append(ep)
 
-    # Sort final list
     method_order = {"GET": 0, "POST": 1, "PUT": 2, "PATCH": 3, "DELETE": 4}
     endpoints.sort(key=lambda e: (method_order.get(e["method"], 9), e["path"]))
 
-    # Final dedup — collapse trailing-slash variants, drop ?-method dupes
-    # if a known-method version of the same path exists
     known_method_keys: set[str] = {
         f"{ep['method']}:{ep['path']}"
         for ep in endpoints if ep["method"] != "?"
@@ -451,7 +421,6 @@ def scrape_docs(
     }
 
 
-# ── CLI ────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import json

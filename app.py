@@ -296,9 +296,6 @@ body {{
     st.iframe(html, height=height + 4)
 
 
-# ════════════════════════════════════════
-# STREAMING FUNCTIONS
-# ════════════════════════════════════════
 def _stream_advisor(question: str, history: list):
     system_prompt = """You are an expert API advisor for developers.
 Help developers choose the right API, compare options, learn best practices.
@@ -334,7 +331,6 @@ def _stream_doc(
     with open("prompts/qa_prompt.txt", "r") as f:
         base = f.read()
 
-    # Build endpoints section from parsed data
     endpoints_section = ""
     if parsed_data and parsed_data.get("endpoints"):
         base_url = parsed_data.get("base_url", "")
@@ -391,7 +387,6 @@ IMPORTANT: You have the extracted endpoints listed above. Always use them to ans
             yield token
 
 
-# ── Session state ──
 for key, val in {
     "mode": "helper",
     "pipeline_result": None,
@@ -411,9 +406,6 @@ for key, val in {
 mode = st.session_state.mode
 
 
-# ════════════════════════════════════════
-# HEADER
-# ════════════════════════════════════════
 st.markdown(
     "<h2 style='text-align:center;margin:16px 0 2px 0'>⚒️ Docsmith</h2>",
     unsafe_allow_html=True
@@ -521,7 +513,6 @@ if st.session_state.mode == "helper":
         elif not use_case:
             st.error("Please describe your use case so Docsmith can filter the right endpoints.")
         else:
-            # Save inputs to session state so they persist on tab switch
             st.session_state.saved_doc_url = doc_url
             st.session_state.saved_api_name = api_name
             st.session_state.saved_language = language
@@ -642,7 +633,6 @@ if st.session_state.mode == "helper":
                 else:
                     st.warning("📦 **SDK:** Use REST")
 
-            # ── Scrollable endpoints box ──
             st.markdown(
                 f"**📋 All endpoints ({len(parsed.get('endpoints', []))})**"
             )

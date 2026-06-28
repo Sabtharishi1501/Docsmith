@@ -1,46 +1,45 @@
-class StripeAPI {
-  constructor(apiKey) {
-    this.apiKey = apiKey;
-    this.baseUrl = 'https://api.stripe.com/v1';
-    this.headers = {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    };
-  }
+import requests
 
-  async createInvoicePreview(invoiceData) {
-    try {
-      const response = await fetch(`${this.baseUrl}/invoices`, {
-        method: 'POST',
-        headers: this.headers,
-        body: new URLSearchParams(invoiceData).toString()
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      throw new Error(`Error creating invoice preview: ${error.message}`);
-    }
-  }
 
-  async createCustomer(customerData) {
-    try {
-      const response = await fetch(`${this.baseUrl}/customers`, {
-        method: 'POST',
-        headers: this.headers,
-        body: new URLSearchParams(customerData).toString()
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      throw new Error(`Error creating customer: ${error.message}`);
-    }
-  }
-}
+class StripeAPI:
+    """
+    A Python wrapper class for the Stripe API.
+    """
 
-const stripeApi = new StripeAPI('YOUR_API_KEY');
-stripeApi.createInvoicePreview({}).then((invoicePreview) => console.log(invoicePreview)).catch((error) => console.error(error));
-stripeApi.createCustomer({ name: 'John Doe', email: 'john@example.com' }).then((customer) => console.log(customer)).catch((error) => console.error(error));
+    def __init__(self, api_key: str):
+        """
+        Initializes the StripeAPI class.
+
+        Args:
+            api_key (str): The Stripe API key.
+        """
+        self.base_url = "https://api.stripe.com/v1"
+        self.api_key = api_key
+        self.auth_header = f"Bearer {api_key}"
+
+    def retrieve_charge(self, id: str) -> dict:
+        """
+        Retrieves a charge.
+
+        Args:
+            id (str): The ID of the charge.
+
+        Returns:
+            dict: The charge object.
+
+        Raises:
+            requests.exceptions.RequestException: If the request fails.
+        """
+        try:
+            url = f"{self.base_url}/charges/{id}"
+            headers = {"Authorization": self.auth_header}
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to retrieve charge: {e}")
+
+
+# Usage example:
+# stripe_api = StripeAPI("your_stripe_api_key")
+# charge = stripe_api.retrieve_charge("charge_id")
